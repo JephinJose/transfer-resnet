@@ -1,27 +1,3 @@
-# Transfer Learning with ResNet-18 on a custom dataset
-# PyTorch 2.0 dropped and it's noticeably faster
-#
-# The idea: instead of training from scratch (like cifar10-pytorch),
-# use ResNet-18 pretrained on ImageNet and just retrain the last layer
-# for my custom classification task.
-#
-# Dataset: using Kaggle's "dogs vs cats" or any folder of images
-# Works with any ImageFolder structure:
-#   data/
-#     train/
-#       class_a/  *.jpg
-#       class_b/  *.jpg
-#     val/
-#       class_a/  *.jpg
-#       class_b/  *.jpg
-#
-# Results with 1000 training images per class:
-#   Training from scratch:    ~72% after 20 epochs
-#   Fine-tune last layer:     ~94% after 5 epochs  <-- wow
-#   Fine-tune all layers:     ~97% after 10 epochs <-- slightly better, 2x slower
-#
-# lesson: always try transfer learning first before training from scratch
-
 import os
 import copy
 import time
@@ -47,26 +23,21 @@ print(f"PyTorch {torch.__version__} | device: {device}")
 torch.manual_seed(42)
 np.random.seed(42)
 
-# ---- config -----------------------------------------------------------------
 
-DATA_DIR    = "data"          # ImageFolder structure
+DATA_DIR    = "data"
 BATCH_SIZE  = 32
-EPOCHS_HEAD = 5               # epochs for head-only training
-EPOCHS_FULL = 10              # epochs for full fine-tuning
-LR_HEAD     = 1e-3            # higher LR when only training head
-LR_FULL     = 1e-4            # lower LR for full fine-tuning (avoid destroying pretrained weights)
+EPOCHS_HEAD = 5
+EPOCHS_FULL = 10
+LR_HEAD     = 1e-3
+LR_FULL     = 1e-4
 
 
-# ---- data -------------------------------------------------------------------
-
-# ImageNet normalization (REQUIRED when using pretrained weights)
-# these exact values come from the ImageNet dataset statistics
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD  = [0.229, 0.224, 0.225]
 
 train_transform = transforms.Compose([
     transforms.Resize(256),
-    transforms.RandomCrop(224),               # ResNet expects 224x224
+    transforms.RandomCrop(224),
     transforms.RandomHorizontalFlip(),
     transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.2, hue=0.05),
     transforms.RandomRotation(15),
@@ -91,11 +62,9 @@ def load_data(data_dir):
         val_dataset   = ImageFolder(val_dir,   transform=val_transform)
         print(f"Loaded from {data_dir}: {len(train_dataset)} train, {len(val_dataset)} val")
     else:
-        # fallback: use CIFAR-10 to demo the code
         print(f"No ImageFolder at {data_dir} — falling back to CIFAR-10 subset (10 classes)")
         full_train = torchvision.datasets.CIFAR10(root="./cifar_data", train=True,  download=True)
         full_val   = torchvision.datasets.CIFAR10(root="./cifar_data", train=False, download=True)
-        # apply transforms manually since CIFAR10 is 32x32 not 224x224
         train_transform_c = transforms.Compose([
             transforms.Resize(224), transforms.RandomHorizontalFlip(),
             transforms.ToTensor(), transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
@@ -105,7 +74,6 @@ def load_data(data_dir):
         ])
         full_train.transform = train_transform_c
         full_val.transform   = val_transform_c
-        # use smaller subset for speed
         train_dataset, _ = random_split(full_train, [5000, 45000], generator=torch.Generator().manual_seed(42))
         val_dataset,   _ = random_split(full_val,   [1000,  9000], generator=torch.Generator().manual_seed(42))
 
@@ -121,27 +89,17 @@ num_classes = len(class_names)
 print(f"Classes ({num_classes}): {class_names}")
 
 
-# ---- model: ResNet-18 -------------------------------------------------------
-
 def build_transfer_model(num_classes, freeze_backbone=True):
-    """
-    Load pretrained ResNet-18, replace the final FC layer.
-    freeze_backbone=True: only train the new FC layer (faster, use this first)
-    freeze_backbone=False: train all layers (fine-tuning, slower but better)
-    """
-    model = models.resnet18(pretrained=True)   # downloads ~45MB weights from PyTorch hub
+    model = models.resnet18(pretrained=True)
 
     if freeze_backbone:
         for param in model.parameters():
             param.requires_grad = False
 
-    # replace final layer - in_features=512 for ResNet-18
     model.fc = nn.Linear(model.fc.in_features, num_classes)
 
     return model.to(device)
 
-
-# ---- training ---------------------------------------------------------------
 
 def train_one_epoch(model, loader, criterion, optimizer):
     model.train()
@@ -187,7 +145,6 @@ def evaluate(model, loader, criterion):
 
 def run_training(model, train_loader, val_loader, epochs, lr, label):
     criterion = nn.CrossEntropyLoss()
-    # only optimize parameters that require grad
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
     scheduler = CosineAnnealingLR(optimizer, T_max=epochs)
 
@@ -228,8 +185,6 @@ def run_training(model, train_loader, val_loader, epochs, lr, label):
     return history
 
 
-# ---- PHASE 1: train head only -----------------------------------------------
-
 model = build_transfer_model(num_classes, freeze_backbone=True)
 trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 total_params     = sum(p.numel() for p in model.parameters())
@@ -239,8 +194,6 @@ history_head = run_training(model, train_loader, val_loader, EPOCHS_HEAD, LR_HEA
 torch.save(model.state_dict(), "resnet18_head.pth")
 
 
-# ---- PHASE 2: unfreeze all layers and fine-tune -----------------------------
-
 print("\nUnfreezing all layers for fine-tuning...")
 for param in model.parameters():
     param.requires_grad = True
@@ -249,16 +202,12 @@ history_full = run_training(model, train_loader, val_loader, EPOCHS_FULL, LR_FUL
 torch.save(model.state_dict(), "resnet18_finetuned.pth")
 
 
-# ---- final evaluation -------------------------------------------------------
-
 criterion = nn.CrossEntropyLoss()
 _, final_acc, all_preds, all_labels = evaluate(model, val_loader, criterion)
 print(f"\nFinal val accuracy: {final_acc*100:.2f}%")
 print("\nClassification report:")
 print(classification_report(all_labels, all_preds, target_names=class_names))
 
-
-# ---- plots ------------------------------------------------------------------
 
 def plot_history(h1, h2, label1="Head only", label2="Full fine-tune"):
     epochs1 = len(h1["val_acc"])
@@ -293,7 +242,6 @@ def plot_history(h1, h2, label1="Head only", label2="Full fine-tune"):
 
 plot_history(history_head, history_full)
 
-# confusion matrix
 if num_classes <= 20:
     cm = confusion_matrix(all_labels, all_preds)
     plt.figure(figsize=(8, 6))
