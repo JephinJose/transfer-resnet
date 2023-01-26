@@ -2,19 +2,8 @@
 
 ResNet-18 transfer learning on a custom image dataset.
 Two-phase: (1) train head only, (2) fine-tune all layers.
-PyTorch 2.0 — noticeably faster than 1.x, `torch.compile()` is wild.
+PyTorch 2.0 noticeably faster than 1.x, `torch.compile()` is wild.
 
-## Data format (ImageFolder)
-
-```
-data/
-  train/
-    class_a/  img1.jpg  img2.jpg ...
-    class_b/  img1.jpg  ...
-  val/
-    class_a/  ...
-    class_b/  ...
-```
 
 Falls back to CIFAR-10 (auto-downloaded) if no `data/` folder exists.
 
@@ -40,10 +29,3 @@ python train.py
 - Phase 1 (freeze backbone): fast, good starting point
 - Phase 2 (fine-tune all): use **very small LR** (1e-4) or you destroy the pretrained features
 - `copy.deepcopy(model.state_dict())` to save best weights during training
-
-## TODO
-
-- [ ] Try EfficientNet-B0 (smaller, often better than ResNet-18)
-- [ ] Try ViT (Vision Transformer) — everyone is talking about it in 2023
-- [ ] Add Grad-CAM visualization to see what the model is looking at
-- [ ] Export to TorchScript for deployment
