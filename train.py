@@ -23,17 +23,15 @@ print(f"PyTorch {torch.__version__} | device: {device}")
 torch.manual_seed(42)
 np.random.seed(42)
 
-
-DATA_DIR    = "data"
-BATCH_SIZE  = 32
+DATA_DIR = "data"
+BATCH_SIZE = 32
 EPOCHS_HEAD = 5
 EPOCHS_FULL = 10
-LR_HEAD     = 1e-3
-LR_FULL     = 1e-4
-
+LR_HEAD = 1e-3
+LR_FULL = 1e-4
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
-IMAGENET_STD  = [0.229, 0.224, 0.225]
+IMAGENET_STD = [0.229, 0.224, 0.225]
 
 train_transform = transforms.Compose([
     transforms.Resize(256),
@@ -55,16 +53,16 @@ val_transform = transforms.Compose([
 
 def load_data(data_dir):
     train_dir = os.path.join(data_dir, "train")
-    val_dir   = os.path.join(data_dir, "val")
+    val_dir = os.path.join(data_dir, "val")
 
     if os.path.exists(train_dir) and os.path.exists(val_dir):
         train_dataset = ImageFolder(train_dir, transform=train_transform)
-        val_dataset   = ImageFolder(val_dir,   transform=val_transform)
+        val_dataset = ImageFolder(val_dir, transform=val_transform)
         print(f"Loaded from {data_dir}: {len(train_dataset)} train, {len(val_dataset)} val")
     else:
         print(f"No ImageFolder at {data_dir} — falling back to CIFAR-10 subset (10 classes)")
-        full_train = torchvision.datasets.CIFAR10(root="./cifar_data", train=True,  download=True)
-        full_val   = torchvision.datasets.CIFAR10(root="./cifar_data", train=False, download=True)
+        full_train = torchvision.datasets.CIFAR10(root="./cifar_data", train=True, download=True)
+        full_val = torchvision.datasets.CIFAR10(root="./cifar_data", train=False, download=True)
         train_transform_c = transforms.Compose([
             transforms.Resize(224), transforms.RandomHorizontalFlip(),
             transforms.ToTensor(), transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
@@ -73,12 +71,12 @@ def load_data(data_dir):
             transforms.Resize(224), transforms.ToTensor(), transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
         ])
         full_train.transform = train_transform_c
-        full_val.transform   = val_transform_c
+        full_val.transform = val_transform_c
         train_dataset, _ = random_split(full_train, [5000, 45000], generator=torch.Generator().manual_seed(42))
-        val_dataset,   _ = random_split(full_val,   [1000,  9000], generator=torch.Generator().manual_seed(42))
+        val_dataset, _ = random_split(full_val, [1000, 9000], generator=torch.Generator().manual_seed(42))
 
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,  num_workers=2, pin_memory=True)
-    val_loader   = DataLoader(val_dataset,   batch_size=BATCH_SIZE, shuffle=False, num_workers=2, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=2, pin_memory=True)
 
     class_names = getattr(train_dataset, "classes", None) or [str(i) for i in range(10)]
     return train_loader, val_loader, class_names
@@ -110,14 +108,14 @@ def train_one_epoch(model, loader, criterion, optimizer):
 
         optimizer.zero_grad()
         outputs = model(images)
-        loss    = criterion(outputs, labels)
+        loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
 
         total_loss += loss.item() * images.size(0)
-        _, preds    = outputs.max(1)
-        correct    += preds.eq(labels).sum().item()
-        total      += images.size(0)
+        _, preds = outputs.max(1)
+        correct += preds.eq(labels).sum().item()
+        total += images.size(0)
 
     return total_loss / total, correct / total
 
@@ -132,11 +130,11 @@ def evaluate(model, loader, criterion):
         for images, labels in loader:
             images, labels = images.to(device), labels.to(device)
             outputs = model(images)
-            loss    = criterion(outputs, labels)
+            loss = criterion(outputs, labels)
             total_loss += loss.item() * images.size(0)
-            _, preds    = outputs.max(1)
-            correct    += preds.eq(labels).sum().item()
-            total      += images.size(0)
+            _, preds = outputs.max(1)
+            correct += preds.eq(labels).sum().item()
+            total += images.size(0)
             all_preds.extend(preds.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
 
@@ -149,12 +147,12 @@ def run_training(model, train_loader, val_loader, epochs, lr, label):
     scheduler = CosineAnnealingLR(optimizer, T_max=epochs)
 
     history = {"train_loss": [], "val_loss": [], "train_acc": [], "val_acc": []}
-    best_acc   = 0
+    best_acc = 0
     best_weights = copy.deepcopy(model.state_dict())
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"Phase: {label} | LR: {lr} | Epochs: {epochs}")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
 
     for epoch in range(1, epochs + 1):
         t0 = time.time()
@@ -169,30 +167,29 @@ def run_training(model, train_loader, val_loader, epochs, lr, label):
         history["val_acc"].append(vl_acc)
 
         if vl_acc > best_acc:
-            best_acc     = vl_acc
+            best_acc = vl_acc
             best_weights = copy.deepcopy(model.state_dict())
             flag = " *"
         else:
             flag = ""
 
         print(f"Epoch {epoch:2d}/{epochs} | "
-              f"train {tr_acc*100:.1f}% loss {tr_loss:.4f} | "
-              f"val {vl_acc*100:.1f}% loss {vl_loss:.4f} | "
+              f"train {tr_acc * 100:.1f}% loss {tr_loss:.4f} | "
+              f"val {vl_acc * 100:.1f}% loss {vl_loss:.4f} | "
               f"{elapsed:.0f}s{flag}")
 
     model.load_state_dict(best_weights)
-    print(f"\nBest val accuracy: {best_acc*100:.2f}%")
+    print(f"\nBest val accuracy: {best_acc * 100:.2f}%")
     return history
 
 
 model = build_transfer_model(num_classes, freeze_backbone=True)
 trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-total_params     = sum(p.numel() for p in model.parameters())
+total_params = sum(p.numel() for p in model.parameters())
 print(f"\nPhase 1: {trainable_params:,} trainable / {total_params:,} total params")
 
 history_head = run_training(model, train_loader, val_loader, EPOCHS_HEAD, LR_HEAD, "Head only")
 torch.save(model.state_dict(), "resnet18_head.pth")
-
 
 print("\nUnfreezing all layers for fine-tuning...")
 for param in model.parameters():
@@ -201,10 +198,9 @@ for param in model.parameters():
 history_full = run_training(model, train_loader, val_loader, EPOCHS_FULL, LR_FULL, "Full fine-tune")
 torch.save(model.state_dict(), "resnet18_finetuned.pth")
 
-
 criterion = nn.CrossEntropyLoss()
 _, final_acc, all_preds, all_labels = evaluate(model, val_loader, criterion)
-print(f"\nFinal val accuracy: {final_acc*100:.2f}%")
+print(f"\nFinal val accuracy: {final_acc * 100:.2f}%")
 print("\nClassification report:")
 print(classification_report(all_labels, all_preds, target_names=class_names))
 
@@ -217,10 +213,10 @@ def plot_history(h1, h2, label1="Head only", label2="Full fine-tune"):
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
 
-    ax1.plot(x1, h1["train_acc"], "b--",  alpha=0.6, label=f"{label1} train")
-    ax1.plot(x1, h1["val_acc"],   "b-",               label=f"{label1} val")
-    ax1.plot(x2, h2["train_acc"], "r--",  alpha=0.6, label=f"{label2} train")
-    ax1.plot(x2, h2["val_acc"],   "r-",               label=f"{label2} val")
+    ax1.plot(x1, h1["train_acc"], "b--", alpha=0.6, label=f"{label1} train")
+    ax1.plot(x1, h1["val_acc"], "b-", label=f"{label1} val")
+    ax1.plot(x2, h2["train_acc"], "r--", alpha=0.6, label=f"{label2} train")
+    ax1.plot(x2, h2["val_acc"], "r-", label=f"{label2} val")
     ax1.axvline(x=epochs1 + 0.5, color="gray", linestyle=":", label="Unfreeze")
     ax1.set_title("Accuracy")
     ax1.set_xlabel("Epoch")
@@ -235,10 +231,11 @@ def plot_history(h1, h2, label1="Head only", label2="Full fine-tune"):
     ax2.legend()
     ax2.grid(True, alpha=0.3)
 
-    plt.suptitle(f"ResNet-18 Transfer Learning | Final acc: {final_acc*100:.2f}%")
+    plt.suptitle(f"ResNet-18 Transfer Learning | Final acc: {final_acc * 100:.2f}%")
     plt.tight_layout()
     plt.savefig("training_curves.png", dpi=120)
     plt.show()
+
 
 plot_history(history_head, history_full)
 
